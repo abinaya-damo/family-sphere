@@ -1,0 +1,2 @@
+Family Sphere v236 does not require any new Supabase SQL migration.
+It only changes the application download flow.

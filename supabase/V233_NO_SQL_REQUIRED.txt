@@ -1,0 +1,7 @@
+Family Sphere v233 requires no new Supabase SQL migration.
+
+Reason:
+- v233 changes only browser-side page restoration and immediate document-count rendering.
+- Continue using the documents table/storage setup from v231.
+
+If V231_DOCUMENT_VAULT_DATABASE_FIX.sql has already been run, do not run any additional SQL for v233.

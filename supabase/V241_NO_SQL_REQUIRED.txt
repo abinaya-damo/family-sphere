@@ -1,0 +1,1 @@
+No SQL migration is required for v241. This release fixes Help Board request ID resolution in application code.

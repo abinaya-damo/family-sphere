@@ -1,0 +1,2 @@
+V247 does not require a new database migration.
+Events and reminders use the existing family_states shared state and the v246 live sync channel.

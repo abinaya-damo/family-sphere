@@ -1,0 +1,2 @@
+No Supabase SQL migration is required for Family Sphere v234.
+This update changes only frontend/backend UI feedback behavior.

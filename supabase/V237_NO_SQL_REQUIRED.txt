@@ -1,0 +1,3 @@
+Family Sphere v237 requires no Supabase schema or SQL changes.
+This release fixes frontend page/modal navigation isolation only.
+Continue using the existing Supabase database and migrations already applied through v231.

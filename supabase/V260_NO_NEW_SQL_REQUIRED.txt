@@ -1,0 +1,4 @@
+No new SQL is required for Family Sphere v260.
+
+Keep the existing Supabase database and the v259 notification backend migration already applied.
+Do not reset or rerun the complete database setup.

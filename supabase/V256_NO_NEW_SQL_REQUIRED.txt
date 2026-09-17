@@ -1,0 +1,4 @@
+V256 requires no new SQL migration.
+
+It uses the existing public.notifications table from COMPLETE_SUPABASE_SETUP.sql/schema.sql.
+Do not rerun or reset the database.

@@ -1,0 +1,1 @@
+V255 changes only Document Vault live synchronization logic. No new Supabase SQL is required.

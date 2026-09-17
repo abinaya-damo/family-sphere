@@ -1,0 +1,6 @@
+Family Sphere v258 requires no new SQL migration.
+
+Notifications use the existing Supabase family_states row as a backend-owned ledger.
+Documents continue using the existing documents table and storage bucket.
+
+Do not reset the database and do not rerun COMPLETE_SUPABASE_SETUP.sql.

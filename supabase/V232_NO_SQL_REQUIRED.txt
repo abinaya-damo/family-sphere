@@ -1,0 +1,4 @@
+Family Sphere v232 does not require a new Supabase SQL migration.
+
+If you already ran V231_DOCUMENT_VAULT_DATABASE_FIX.sql, keep the existing database as-is.
+V232 fixes frontend/backend JavaScript session and document-count synchronization only.

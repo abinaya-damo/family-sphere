@@ -1,0 +1,4 @@
+Family Sphere v243 does not require a new Supabase migration.
+
+The failure fixed in v243 was a frontend runtime JavaScript bug: ensureHelpBackend() was called but not defined.
+Existing family_states persistence is used for Help Board state.

@@ -1,0 +1,1 @@
+No new Supabase SQL is required for Family Sphere v248.

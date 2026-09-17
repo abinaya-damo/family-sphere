@@ -1,0 +1,2 @@
+Family Sphere v235 does not require a Supabase SQL migration.
+This release only fixes the document Save record button feedback in the frontend/save bridge.

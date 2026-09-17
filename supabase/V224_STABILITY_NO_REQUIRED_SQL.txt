@@ -1,0 +1,19 @@
+Family Sphere v224 stability upgrade
+====================================
+No database migration is required if you already ran schema.sql + migration_v222_shared_family_graph.sql.
+
+v224 uses the existing family_states.updated_at field for optimistic concurrency protection.
+It also adds:
+- retry/backoff + 15s request timeout
+- visible Saved / Offline / Sync issue status
+- cross-device refresh without overwriting an active editor
+- upload MIME validation and 12 MB size limit
+- protected /api/family-sphere-ai endpoint
+- deterministic relationship calculation before AI wording
+- optional Gemini server integration via GEMINI_API_KEY
+
+Recommended Supabase settings:
+1. Keep family-documents and profile-photos buckets PRIVATE.
+2. Never put SUPABASE_SERVICE_ROLE_KEY or GEMINI_API_KEY in NEXT_PUBLIC_* variables.
+3. Run the latest schema.sql once for a fresh project.
+4. For an existing v223 project, no new SQL is required for v224.

@@ -1,0 +1,6 @@
+Family Sphere v242 Help Board stable-state fix
+
+No new SQL migration is required.
+
+v242 uses the existing public.family_states table already created by the Family Sphere Supabase setup.
+If you previously ran v238/v240 Help Board SQL, you do not need to remove those tables; v242 can import compatible existing Help data once and then uses family_states for Help Board state.

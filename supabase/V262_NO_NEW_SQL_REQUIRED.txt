@@ -1,0 +1,2 @@
+No new SQL is required for Family Sphere v262.
+This update only removes launch/development UI artifacts.

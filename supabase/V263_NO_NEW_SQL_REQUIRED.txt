@@ -1,0 +1,2 @@
+No new SQL is required for Family Sphere v263.
+This update changes only the Next.js host/launch path.
