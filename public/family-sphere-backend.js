@@ -925,16 +925,8 @@
     if(!doc?.storagePath)return originals.downloadDoc?.(id);
     try{
       const blob=await fetchDocumentDownload(doc);
-      const objectUrl=URL.createObjectURL(blob);
-      const a=document.createElement('a');
-      a.href=objectUrl;
-      a.download=doc.fileName||`${doc.name||'document'}.file`;
-      a.style.display='none';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(()=>URL.revokeObjectURL(objectUrl),30000);
-    }catch(e){console.warn('Document download:',e);showToast('Could not download this secure document')}
+      await window.FamilySpherePdf.download(doc,blob);
+    }catch(e){console.warn('Document download:',e);showToast(e?.message||'Could not download this secure document')}
   };
 
   function fileAsDataUrl(file){
@@ -1034,6 +1026,59 @@
   }
 
 
+  // V282: Recovery works for accounts with non-deliverable login-email identifiers.
+  // No email message, user enumeration, or reset-link redirect is involved.
+  function presentRecoveryCode(code){
+    if(!code)return;
+    const existing=document.getElementById('fsRecoveryCodeDialog');existing?.remove();
+    const overlay=document.createElement('div');overlay.id='fsRecoveryCodeDialog';
+    Object.assign(overlay.style,{position:'fixed',inset:'0',background:'rgba(8,19,35,.73)',zIndex:'2147483647',display:'grid',placeItems:'center',padding:'20px'});
+    const panel=document.createElement('div');Object.assign(panel.style,{background:'#fff',color:'#14243b',borderRadius:'18px',padding:'25px',maxWidth:'460px',width:'100%',boxShadow:'0 20px 60px #0004',fontFamily:'system-ui,sans-serif'});
+    const heading=document.createElement('h2');heading.textContent='Save your personal recovery code';heading.style.margin='0 0 10px';
+    const description=document.createElement('p');description.textContent='This code is shown only once. Save it somewhere private. It is unique to your account and replaces email-based password recovery.';
+    const output=document.createElement('code');output.textContent=code;Object.assign(output.style,{display:'block',overflowWrap:'anywhere',padding:'12px',borderRadius:'8px',background:'#eef4f8',fontSize:'15px',fontWeight:'700',margin:'15px 0'});
+    const warning=document.createElement('p');warning.textContent='Anyone with this code and your login email can reset your password. Do not share it with the family owner or other members.';
+    warning.style.fontSize='12px';
+    const copy=document.createElement('button');copy.type='button';copy.textContent='Copy recovery code';Object.assign(copy.style,{padding:'12px',border:0,borderRadius:'8px',background:'#176c56',color:'white',cursor:'pointer',marginRight:'8px'});
+    copy.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(code);copy.textContent='Copied'}catch{output.focus();getSelection()?.selectAllChildren(output)}});
+    const done=document.createElement('button');done.type='button';done.textContent='I saved my code';Object.assign(done.style,{padding:'12px',borderRadius:'8px',cursor:'pointer'});
+    done.addEventListener('click',()=>{overlay.remove()});
+    panel.append(heading,description,output,warning,copy,done);overlay.append(panel);document.body.append(overlay);
+  }
+  async function enrollRecoveryAfterAuth(){
+    try{const result=await rawApi('enroll_recovery_code',{},true,false);if(result?.recoveryCode)presentRecoveryCode(result.recoveryCode)}
+    catch(err){console.warn('Recovery enrollment:',err);showToast('Recovery code setup is unavailable. Ask the site administrator to apply the V282 recovery SQL.');}
+  }
+  window.startupForgotPassword=function(e){
+    e?.preventDefault?.();
+    const confirmForm=document.getElementById('startupResetConfirmForm');if(confirmForm){confirmForm.hidden=false;confirmForm.style.display='grid'};
+    const message=document.getElementById('startupResetError');if(message){message.style.color='#176c56';message.textContent='Enter the recovery code you saved when you registered or signed in.'}
+  };
+  window.startupConfirmPasswordReset=async function(e){
+    e?.preventDefault?.();
+    const email=document.getElementById('startupResetEmail')?.value.trim().toLowerCase()||'';
+    const code=document.getElementById('startupResetCode')?.value.trim()||'';
+    const password=document.getElementById('startupResetPassword')?.value||'';
+    const confirm=document.getElementById('startupResetConfirm')?.value||'';
+    const error=document.getElementById('startupResetConfirmError');
+    const button=document.getElementById('startupResetConfirmButton');
+    if(error){error.style.color='#c92e47';error.textContent=''}
+    if(!email||!code){if(error)error.textContent='Enter your account identifier and saved recovery code.';return}
+    if(password.length<8||password.length>128){if(error)error.textContent='Use a password of 8–128 characters.';return}
+    if(password!==confirm){if(error)error.textContent='Passwords do not match.';return}
+    if(!(await checkBackend()))return backendRequired('startupResetConfirmError');
+    if(button){button.disabled=true;button.textContent='Verifying…'}
+    try{
+      const result=await rawApi('recover_with_saved_code',{email,code,password},false,false);
+      document.getElementById('startupResetCode').value='';
+      document.getElementById('startupResetPassword').value='';
+      document.getElementById('startupResetConfirm').value='';
+      if(error){error.style.color='#176c56';error.textContent='Password updated. Save your NEW recovery code shown now, then return to login.'}
+      presentRecoveryCode(result.recoveryCode);
+    }catch(err){if(error)error.textContent=err?.message||'Recovery failed. Verify your saved code.'}
+    finally{if(button){button.disabled=false;button.textContent='Reset password with recovery code'}}
+  };
+
   window.startupCreateFamily=async function(e){
     e?.preventDefault?.();
     if(!(await checkBackend()))return backendRequired('startupCreateError');
@@ -1050,7 +1095,7 @@
       result.membership.person_id=owner.id;
       rememberPage('tree');window.finishByPersonId(owner.id,'owner',email);
       await rawApi('link_person',{familyId:result.family.id,personId:owner.id,ownerPersonId:owner.id});
-      await pushState(true);startLoops();await refreshHelpBoardRemote();installHelpActionDelegation();renderFamilyAccessBar();showToast(`${familyName} created · Family ID ${result.family.code}`);
+      await pushState(true);startLoops();await refreshHelpBoardRemote();installHelpActionDelegation();renderFamilyAccessBar();showToast(`${familyName} created · Family ID ${result.family.code}`);await enrollRecoveryAfterAuth();
     }catch(err){showBackendError('startupCreateError',err)}
   };
 
@@ -1067,22 +1112,54 @@
         await rawApi('link_person',{familyId:result.family.id,personId,ownerPersonId:owner.id});await pushState(true);
       }
       if(!personId||(data.people||[]).every(p=>p.id!==personId))throw new Error('This account is not linked to an approved family-tree profile.');
-      rememberPage('tree');window.finishByPersonId(personId,result.membership.role||'member',email);startLoops();await refreshJoinRequests();await refreshHelpBoardRemote();installHelpActionDelegation();await uploadPendingDocuments();
+      rememberPage('tree');window.finishByPersonId(personId,result.membership.role||'member',email);startLoops();await refreshJoinRequests();await refreshHelpBoardRemote();installHelpActionDelegation();await uploadPendingDocuments();await enrollRecoveryAfterAuth();
     }catch(err){showBackendError('startupLoginError',err)}
   };
 
   let joinInfoCache=null;
+  let joinLookupSequence=0;
   window.refreshStartupJoinAnchor=async function(){
-    if(!(await checkBackend()))return backendRequired('startupJoinError');
-    const code=document.getElementById('startupJoinCode')?.value.trim().toUpperCase()||'',select=document.getElementById('startupJoinAnchor'),error=document.getElementById('startupJoinError');if(!select)return;
-    if(!code){select.disabled=true;select.innerHTML='<option value="">Enter a valid Family ID first</option>';return}
+    // Read the ID immediately, before async health/network checks. Only the latest
+    // lookup may update the dropdown (typing, paste and slower first requests race).
+    const input=document.getElementById('startupJoinCode');
+    const select=document.getElementById('startupJoinAnchor');
+    const error=document.getElementById('startupJoinError');
+    if(!input||!select)return;
+    const code=input.value.trim().toUpperCase();
+    const sequence=++joinLookupSequence;
+    const isLatest=()=>sequence===joinLookupSequence&&input.value.trim().toUpperCase()===code;
+    joinInfoCache=null;
+    select.disabled=true;
+    select.innerHTML=code?'<option value="">Checking Family ID…</option>':'<option value="">Enter a valid Family ID first</option>';
+    if(error)error.textContent='';
+    if(!code)return;
     try{
-      const result=await rawApi('join_info',{code},false);joinInfoCache=result;
-      const people=result.people||[];select.innerHTML='';
-      if(!people.length){select.disabled=true;select.innerHTML='<option value="">This family does not have an approved profile yet</option>';return}
-      select.disabled=false;select.innerHTML='<option value="">Select the person you are directly related to</option>'+people.slice().sort((a,b)=>String(a.name).localeCompare(String(b.name))).map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('');if(error)error.textContent='';
-    }catch(err){joinInfoCache=null;select.disabled=true;select.innerHTML='<option value="">Family ID was not found</option>';if(error&&code.length>=5)error.textContent=err.message}
+      if(!(await checkBackend())){
+        if(isLatest())backendRequired('startupJoinError');
+        return;
+      }
+      if(!isLatest())return;
+      const result=await rawApi('join_info',{code},false);
+      if(!isLatest())return;
+      joinInfoCache=result;
+      const people=Array.isArray(result.people)?result.people:[];
+      if(!people.length){
+        select.innerHTML='<option value="">This family does not have an approved profile yet</option>';
+        return;
+      }
+      select.innerHTML='<option value="">Select the person you are directly related to</option>'+people.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))).map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('');
+      select.disabled=false;
+      if(error)error.textContent='';
+    }catch(err){
+      if(!isLatest())return;
+      joinInfoCache=null;
+      select.disabled=true;
+      select.innerHTML='<option value="">Family ID was not found</option>';
+      if(error&&code.length>=5)error.textContent=err?.message||'Could not look up the Family ID. Please try again.';
+    }
   };
+  // Handle a pasted/auto-filled Family ID even when it appears during backend boot.
+  if(document.getElementById('startupJoinCode')?.value.trim())window.refreshStartupJoinAnchor();
 
   window.startupJoinFamily=async function(e){
     e?.preventDefault?.();
@@ -1090,7 +1167,7 @@
     const code=document.getElementById('startupJoinCode').value.trim().toUpperCase(),name=document.getElementById('startupJoinName').value.trim(),email=document.getElementById('startupJoinEmail').value.trim().toLowerCase(),password=document.getElementById('startupJoinPassword').value,anchor=document.getElementById('startupJoinAnchor'),anchorPersonId=anchor.value,anchorName=anchor.options[anchor.selectedIndex]?.text||'',relation=document.getElementById('startupJoinRelation').value,error=document.getElementById('startupJoinError');error.textContent='';
     try{
       const result=await rawApi('join_request',{code,name,email,password,anchorPersonId,anchorName,relation},false);saveSession(result.session);
-      document.getElementById('startupJoinForm').classList.add('hidden');document.getElementById('startupJoinSuccess').classList.remove('hidden');showToast('Join request sent to the family owner');
+      document.getElementById('startupJoinForm').classList.add('hidden');document.getElementById('startupJoinSuccess').classList.remove('hidden');showToast('Join request sent to the family owner');await enrollRecoveryAfterAuth();
     }catch(err){showBackendError('startupJoinError',err)}
   };
 

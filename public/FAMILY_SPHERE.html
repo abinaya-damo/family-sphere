@@ -1,7 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<style id="v265-first-paint-bg">html,body{background:#241b56}</style>
+<style id="v265-first-paint-bg">html,body{background:#241b56}
+/* V278: focused login and recovery refinement; no dashboard/tree/vault styles touched. */
+.startup-auth-card{box-shadow:0 28px 80px rgba(12,43,42,.15)!important;border:1px solid #dce9e5!important;}
+.startup-auth-card .startup-auth-tabs{background:#f3f7f5!important;border-radius:14px;padding:5px;gap:3px;}
+.startup-auth-card .startup-auth-tabs button{border-radius:10px!important;transition:background .18s,box-shadow .18s,color .18s;}
+.startup-auth-card .startup-auth-title h2{letter-spacing:-.035em;font-size:30px;}
+.startup-auth-card .startup-login-form input:focus,.startup-auth-card .startup-login-form select:focus{outline:2px solid #217f66!important;outline-offset:1px;border-color:#217f66!important;}
+.startup-auth-utility{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:#65756f;}
+.startup-auth-utility button,.startup-auth-back{border:0;background:none;color:#146c58;font:inherit;font-weight:750;cursor:pointer;padding:5px;text-align:center;}
+.startup-auth-utility button:hover,.startup-auth-back:hover{text-decoration:underline;}
+.startup-auth-utility button:focus-visible,.startup-auth-back:focus-visible{outline:2px solid #146c58;outline-offset:3px;border-radius:4px;}
+.startup-reset-mark{width:48px;height:48px;display:grid;place-items:center;background:#e9f7f0;color:#176c56;border-radius:14px;font-size:24px;margin:12px 0 15px;}
+.startup-auth-back{min-height:35px;}
+@media(max-width:480px){.startup-auth-utility{align-items:flex-start;flex-wrap:wrap}.startup-auth-card .startup-auth-title h2{font-size:26px;}}
+</style>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Family Sphere — a private home for family conversations, documents, memories, events and care." />
@@ -2876,10 +2890,29 @@ html.fs-resume-pending.fs-resume-account #account{display:block!important}
         <form class="startup-login-form" onsubmit="startupLoginSubmit(event)">
           <label>Email address<input id="startupFamilyEmail" type="email" placeholder="Enter your email address" autocomplete="username" required></label>
           <label>Password<div class="startup-password-wrap"><input id="startupFamilyPassword" type="password" placeholder="Enter your password" autocomplete="current-password" required><button class="startup-password-toggle" type="button" aria-label="Show password" title="Show password" onclick="toggleStartupPassword('startupFamilyPassword',this)"><svg class="startup-eye-icon" viewBox="0 0 24 24" aria-hidden="true"><g class="eye-open"><path d="M1.5 12s4-7 10.5-7 10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12Z"/><circle cx="12" cy="12" r="3.2"/></g><g class="eye-off"><path d="M10.7 5.2A10.9 10.9 0 0 1 12 5c6.5 0 10.5 7 10.5 7a19.2 19.2 0 0 1-3.2 4.2"/><path d="M6.1 6.6A19.7 19.7 0 0 0 1.5 12s4 7 10.5 7a10.7 10.7 0 0 0 5.1-1.2"/><path d="M9.9 9.8a3.2 3.2 0 0 0 4.3 4.3"/><path d="M3 21 21 3"/></g></svg></button></div></label>
+          <div class="startup-auth-utility"><span>Secure access to your family</span><button type="button" onclick="showStartupAuthTab('reset')">Forgot password?</button></div>
           <div class="startup-error" id="startupLoginError"></div>
           <button type="submit" class="btn primary startup-wide-btn">Login</button>
 
         </form>
+      </div>
+
+      <div class="startup-auth-panel" id="startupAuthReset">
+        <div class="startup-reset-mark" aria-hidden="true">✉</div>
+        <div class="startup-auth-title"><h2>Reset your password</h2><p>Use your personal saved recovery code to create a new password on this page. No working email inbox is required.</p></div>
+        <form class="startup-login-form" id="startupResetRequestForm" onsubmit="startupForgotPassword(event)">
+          <label>Account login email<input id="startupResetEmail" type="email" placeholder="Enter your account login email" autocomplete="username" required></label>
+          <div class="startup-error" id="startupResetError" role="status" aria-live="polite"></div>
+          <button id="startupResetButton" type="submit" class="btn primary startup-wide-btn">Continue with recovery code</button>
+        </form>
+        <form class="startup-login-form" id="startupResetConfirmForm" onsubmit="startupConfirmPasswordReset(event)" hidden style="display:none;margin-top:16px">
+          <label>Your saved recovery code<input id="startupResetCode" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Enter your personal saved recovery code" required maxlength="53"></label>
+          <label>New password<input id="startupResetPassword" type="password" autocomplete="new-password" placeholder="Create a new password" minlength="8" maxlength="128" required></label>
+          <label>Confirm new password<input id="startupResetConfirm" type="password" autocomplete="new-password" placeholder="Re-enter your new password" minlength="8" maxlength="128" required></label>
+          <div class="startup-error" id="startupResetConfirmError" role="status" aria-live="polite"></div>
+          <button id="startupResetConfirmButton" type="submit" class="btn primary startup-wide-btn">Reset password with recovery code</button>
+        </form>
+        <button type="button" class="startup-auth-back" onclick="showStartupAuthTab('login')">← Back to login</button>
       </div>
 
       <div class="startup-auth-panel" id="startupAuthCreate">
@@ -2900,7 +2933,7 @@ html.fs-resume-pending.fs-resume-account #account{display:block!important}
           <label>Family ID<input id="startupJoinCode" placeholder="Enter the Family ID shared by your family" required></label>
           <label>Your full name<input id="startupJoinName" placeholder="Enter your full name" required></label>
           <label>Your email<input id="startupJoinEmail" type="email" placeholder="Enter your email address" autocomplete="username" required></label>
-          <label>Create password<div class="startup-password-wrap"><input id="startupJoinPassword" type="password" minlength="6" placeholder="Create a password (6+ characters)" autocomplete="new-password" required><button class="startup-password-toggle" type="button" aria-label="Show password" title="Show password" onclick="toggleStartupPassword('startupJoinPassword',this)"><svg class="startup-eye-icon" viewBox="0 0 24 24" aria-hidden="true"><g class="eye-open"><path d="M1.5 12s4-7 10.5-7 10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12Z"/><circle cx="12" cy="12" r="3.2"/></g><g class="eye-off"><path d="M10.7 5.2A10.9 10.9 0 0 1 12 5c6.5 0 10.5 7 10.5 7a19.2 19.2 0 0 1-3.2 4.2"/><path d="M6.1 6.6A19.7 19.7 0 0 0 1.5 12s4 7 10.5 7a10.7 10.7 0 0 0 5.1-1.2"/><path d="M9.9 9.8a3.2 3.2 0 0 0 4.3 4.3"/><path d="M3 21 21 3"/></g></svg></button></div></label>
+          <label>Password (existing members: use your current password)<div class="startup-password-wrap"><input id="startupJoinPassword" type="password" minlength="6" placeholder="Use your current password, or create one if new" autocomplete="current-password" required><button class="startup-password-toggle" type="button" aria-label="Show password" title="Show password" onclick="toggleStartupPassword('startupJoinPassword',this)"><svg class="startup-eye-icon" viewBox="0 0 24 24" aria-hidden="true"><g class="eye-open"><path d="M1.5 12s4-7 10.5-7 10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12Z"/><circle cx="12" cy="12" r="3.2"/></g><g class="eye-off"><path d="M10.7 5.2A10.9 10.9 0 0 1 12 5c6.5 0 10.5 7 10.5 7a19.2 19.2 0 0 1-3.2 4.2"/><path d="M6.1 6.6A19.7 19.7 0 0 0 1.5 12s4 7 10.5 7a10.7 10.7 0 0 0 5.1-1.2"/><path d="M9.9 9.8a3.2 3.2 0 0 0 4.3 4.3"/><path d="M3 21 21 3"/></g></svg></button></div></label>
           <label>Who in this family are you directly related to?
             <select id="startupJoinAnchor" required disabled>
               <option value="">Enter a valid Family ID first</option>
@@ -2937,7 +2970,7 @@ html.fs-resume-pending.fs-resume-account #account{display:block!important}
     <nav class="nav" id="nav">
       <button class="active" data-page="home">⌂ Dashboard</button><button data-page="tree">♧ Family Tree</button><button data-page="vault">▣ Document Vault</button><button data-page="help">♡ Help Board</button><button data-page="events">◷ Events & Reminders</button>
     </nav>
-    <div class="sidebar-bottom"><button class="btn danger" onclick="openModal('sosModal')">SOS Emergency</button><div class="privacy">🔒 Private by design<br />Documents are never posted in chat.</div><button class="btn dashboard-back" onclick="window.top.location.href='/'">← Back</button></div>
+    <div class="sidebar-bottom"><button class="btn dashboard-back" onclick="window.top.location.href='/'">← Back</button></div>
   </aside>
   <main>
     <header class="topbar"><div style="display:flex;align-items:center;gap:12px"><button class="icon-btn mobile-menu" onclick="sidebar.classList.toggle('open')">☰</button><div class="welcome"><b id="familyNameHeader">Gautham Family</b><div class="muted">Your private family space</div></div></div><div class="top-actions"><button class="icon-btn home-btn" onclick="window.top.location.href='/'"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/><path d="M9.5 20v-6h5v6"/></svg><span>Home</span></button><button class="icon-btn" onclick="toggleTheme()" title="Change theme">◐</button><div class="notification-wrap"><button class="icon-btn notification-btn animated-notification" onclick="toggleNotifications(event)" title="Notifications" aria-label="Open notifications"><svg class="v252-bell-icon" viewBox="0 0 24 24" aria-hidden="true"><path class="v252-bell-wave" d="M4.1 8.2c-1.15 2.3-1.15 5.3 0 7.6M19.9 8.2c1.15 2.3 1.15 5.3 0 7.6"/><path class="v252-bell-wave" d="M6.5 9.4c-.72 1.55-.72 3.65 0 5.2M17.5 9.4c.72 1.55.72 3.65 0 5.2"/><path class="v252-bell-body" d="M17.3 9.2c0-3.25-2.05-5.55-5.3-5.55S6.7 5.95 6.7 9.2c0 4.42-2.1 5.25-2.1 6.85 0 .63.5 1.12 1.13 1.12h12.54c.63 0 1.13-.49 1.13-1.12 0-1.6-2.1-2.43-2.1-6.85Z"/><path class="v252-bell-highlight" d="M9.2 6.05c.8-.9 1.7-1.35 2.7-1.45-2.25.55-3.55 2.35-3.55 4.9 0 3.2-1.25 4.6-1.78 5.85h2.02c.56-1.48 1.22-3.02 1.22-5.7 0-1.5-.2-2.7-.61-3.6Z"/><path class="v252-bell-body" d="M9.65 18.15h4.7c-.2 1.6-1.14 2.55-2.35 2.55s-2.15-.95-2.35-2.55Z"/></svg><span class="notification-badge hidden" id="notificationBadge">0</span></button><div class="notification-panel hidden" id="notificationPanel"><div class="notification-head"><h3>Notifications</h3><button class="btn" onclick="markAllNotificationsRead(event)">Mark all read</button></div><div class="notification-list" id="notificationList"></div></div></div><button class="avatar profile-trigger" type="button" onclick="go('account')" title="Login and account details" aria-label="Open login and account details">G</button></div></header>
@@ -3523,7 +3556,7 @@ html.fs-resume-pending.fs-resume-account #account{display:block!important}
   function deleteStoredDocument(id){const doc=data.docs.find(x=>x.id===id);if(!doc||!confirm(`Delete “${doc.name}”?`))return;const cat=doc.cat;data.docs=data.docs.filter(x=>x.id!==id);save();renderDocuments();showToast(`${doc.name} deleted`);openDocumentCategory(cat)}
   function deleteDocumentCategory(category,cardId){const saved=categorySavedDocs(category),demo=defaultDocuments.find(x=>x.id===cardId);if(!confirm(`Delete ${categoryName(category)} and ${saved.length} uploaded document${saved.length===1?'':'s'} inside it?`))return;if(demo&&!data.removedDocs.includes(demo.id))data.removedDocs.push(demo.id);data.docs=data.docs.filter(x=>x.cat!==category);save();renderDocuments();showToast(`${categoryName(category)} deleted`)}
   function viewStoredDocument(id){const doc=data.docs.find(x=>x.id===id);if(!doc?.fileData){showToast('This older record has no stored preview data. Re-upload the file.');return}const type=doc.fileType||'',name=doc.fileName||doc.name;$('#previewTitle').textContent=doc.name;$('#previewMeta').textContent=`${name} · ${formatFileSize(doc.fileSize||0)}`;const stage=$('#previewStage');previewZoom=1;if(type.startsWith('image/')||/\.(png|jpe?g|gif|webp)$/i.test(name)){stage.innerHTML=`<img id="previewImage" src="${doc.fileData}" alt="${escapeHtml(doc.name)}">`;$('#imageZoomControls').style.display='flex'}else if(type==='application/pdf'||/\.pdf$/i.test(name)){stage.innerHTML=`<iframe title="${escapeHtml(doc.name)}" src="${doc.fileData}"></iframe>`;$('#imageZoomControls').style.display='none'}else{stage.innerHTML='<div class="vault-empty">Preview is available for PDF and image files. Use Download for this document type.</div>';$('#imageZoomControls').style.display='none'}openModal('docPreviewModal')}
-  function downloadStoredDocument(id){const doc=data.docs.find(x=>x.id===id);if(!doc?.fileData){showToast('This older record has no stored file data. Re-upload the file.');return}const a=document.createElement('a');a.href=doc.fileData;a.download=doc.fileName||`${doc.name}.file`;document.body.appendChild(a);a.click();a.remove()}
+  async function downloadStoredDocument(id){const doc=data.docs.find(x=>x.id===id);if(!doc?.fileData){showToast('This older record has no stored file data. Re-upload the file.');return}try{await window.FamilySpherePdf.download(doc,await(await fetch(doc.fileData)).blob())}catch(e){console.warn('Document PDF download:',e);showToast(e?.message||'Could not create the PDF')}}
   function changePreviewZoom(delta){previewZoom=Math.max(.5,Math.min(3,previewZoom+delta));const img=$('#previewImage');if(img)img.style.transform=`scale(${previewZoom})`}
   function resetPreviewZoom(){previewZoom=1;const img=$('#previewImage');if(img)img.style.transform='scale(1)'}
   function closeDocumentPreview(){closeModal('docPreviewModal');$('#previewStage').innerHTML=''}
@@ -5641,7 +5674,7 @@ html.fs-resume-pending.fs-resume-account #account{display:block!important}
     document.querySelectorAll('.startup-auth-tabs button').forEach(b=>b.classList.toggle('active',b.dataset.authTab===tab));
     document.querySelectorAll('.startup-auth-panel').forEach(p=>p.classList.remove('active'));
     const panel=document.getElementById('startupAuth'+tab.charAt(0).toUpperCase()+tab.slice(1));if(panel)panel.classList.add('active');if(tab==='join')setTimeout(()=>window.refreshStartupJoinAnchor?.(),0);
-    ['startupLoginError','startupCreateError','startupJoinError'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=''});
+    ['startupLoginError','startupCreateError','startupJoinError','startupResetError'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=''});
   };
   function finishByPersonId(personId,method,email){
     const p=(data.people||[]).find(x=>x.id===personId);if(!p)return false;
@@ -5690,7 +5723,7 @@ html.fs-resume-pending.fs-resume-account #account{display:block!important}
     if(error)error.textContent='';
   };
   const joinCodeInput=document.getElementById('startupJoinCode');
-  if(joinCodeInput){joinCodeInput.addEventListener('input',()=>{clearTimeout(joinCodeInput._joinTimer);joinCodeInput._joinTimer=setTimeout(refreshStartupJoinAnchor,120)});joinCodeInput.addEventListener('change',refreshStartupJoinAnchor)}
+  if(joinCodeInput){joinCodeInput.addEventListener('input',()=>{clearTimeout(joinCodeInput._joinTimer);joinCodeInput._joinTimer=setTimeout(()=>window.refreshStartupJoinAnchor?.(),280)});joinCodeInput.addEventListener('change',()=>{clearTimeout(joinCodeInput._joinTimer);window.refreshStartupJoinAnchor?.()});joinCodeInput.addEventListener('paste',()=>{clearTimeout(joinCodeInput._joinTimer);joinCodeInput._joinTimer=setTimeout(()=>window.refreshStartupJoinAnchor?.(),0)})}
 
   window.startupJoinFamily=function(e){
     e.preventDefault();
@@ -5986,8 +6019,8 @@ html.fs-resume-pending.fs-resume-account #account{display:block!important}
     const hasBounds=Number.isFinite(minX)&&Number.isFinite(maxX)&&Number.isFinite(minY)&&Number.isFinite(maxY);
     if(hasBounds){
       const marginX=90,marginY=90;
-      minX=Math.max(0,minX-marginX);maxX=Math.min(W,maxX+marginX);
-      minY=Math.max(0,minY-marginY);maxY=Math.min(H,maxY+marginY);
+      minX-=marginX;maxX+=marginX;
+      minY-=marginY;maxY+=marginY;
       const bw=Math.max(1,maxX-minX),bh=Math.max(1,maxY-minY);
       fitScale=Math.max(.035,Math.min(1,(vw-pad*2)/bw,(vh-pad*2)/bh));
       multiplier=1;
@@ -6183,7 +6216,8 @@ html.fs-resume-pending.fs-resume-account #account{display:block!important}
     const s=load(),{W,H}=naturalSize(tree);
     for(const card of tree.querySelectorAll('.person[data-person-id]')){
       const p=s.profiles?.[card.dataset.personId];if(!p)continue;
-      const x=clamp(Number(p.x)||0,48,W-48),y=clamp(Number(p.y)||0,48,H-48);
+      const x=Number(p.x),y=Number(p.y);
+      if(!Number.isFinite(x)||!Number.isFinite(y))continue;
       card.style.setProperty('--x',`${x}px`);card.style.setProperty('--y',`${y}px`);
     }
     setArtTransform(Number(s.tree?.dx)||0,Number(s.tree?.dy)||0);
@@ -6213,7 +6247,7 @@ html.fs-resume-pending.fs-resume-account #account{display:block!important}
     if(!drag)return;const {tree}=nodes();if(!tree)return;const scale=screenScale(tree),dx=(e.clientX-drag.startClientX)/scale,dy=(e.clientY-drag.startClientY)/scale;
     if(Math.abs(dx)+Math.abs(dy)>3)drag.moved=true;
     if(drag.kind==='profile'){
-      const {W,H}=naturalSize(tree),x=clamp(drag.startX+dx,48,W-48),y=clamp(drag.startY+dy,48,H-48);
+      const x=drag.startX+dx,y=drag.startY+dy;
       drag.card.style.setProperty('--x',`${x}px`);drag.card.style.setProperty('--y',`${y}px`);redraw();
     }else{
       // Convert canvas pixels to the SVG's 724×1024 viewBox coordinates.
@@ -7289,6 +7323,22 @@ document.addEventListener('click',(ev)=>{
 </style>
 
 
+
+<style id="v283-unbounded-tree-and-direct-profile-hover">
+/* Only Family Tree: keep the viewport as a movable window, not a movement boundary.
+   The artboard and its connectors may extend beyond the original artwork dimensions. */
+#familyTree.tree-art-layout{overflow:visible!important;contain:none!important}
+#familyTree.tree-art-layout .graph-connectors{overflow:visible!important}
+#familyTree.tree-art-layout .person.default-seven-card:hover,
+#familyTree.tree-art-layout .person.default-seven-card:focus-within{
+  transform:translate(-50%,-50%) scale(1.65)!important;
+  z-index:85!important;
+  box-shadow:0 15px 38px rgba(58,45,160,.28)!important;
+  transition:transform .16s ease,box-shadow .16s ease!important;
+}
+/* This is only the screen's viewing window; users can pan/zoom to any offscreen profile. */
+</style>
+
 <script id="v214-tree-safe-frame-fit-script">
 (function(){
   const SAFE_SCREEN=34;
@@ -7337,14 +7387,14 @@ document.addEventListener('click',(ev)=>{
     if(fitting)return;
     const {tree,wrap,label}=nodes();
     if(!tree||!wrap||!tree.classList.contains('tree-art-layout'))return;
-    clampProfilesToCanvas();
     const {W,H}=naturalSize(tree);
     const vw=Math.max(1,wrap.clientWidth),vh=Math.max(1,wrap.clientHeight);
     const availableW=Math.max(120,vw-SAFE_SCREEN*2),availableH=Math.max(120,vh-SAFE_SCREEN*2);
-    // V269: fit the COMPLETE natural tree canvas, not only member bounds.
-    // This prevents automatic navigation/render fits from zooming back in.
-    const scale=Math.max(.03,Math.min(1,availableW/W,availableH/H));
-    let tx=(vw-W*scale)/2,ty=(vh-H*scale)/2;
+    // Include profiles outside the old 724x1024 artboard rather than clipping them.
+    const b=profileBounds(tree);
+    const minX=b?b.minX:0,maxX=b?b.maxX:W,minY=b?b.minY:0,maxY=b?b.maxY:H;
+    const scale=Math.max(.02,Math.min(1,availableW/Math.max(1,maxX-minX),availableH/Math.max(1,maxY-minY)));
+    let tx=vw/2-(minX+maxX)*scale/2,ty=vh/2-(minY+maxY)*scale/2;
     fitting=true;
     tree.style.setProperty('transform',`translate(${Math.round(tx)}px,${Math.round(ty)}px) scale(${scale})`,'important');
     tree.style.setProperty('transform-origin','0 0','important');
@@ -7369,8 +7419,6 @@ document.addEventListener('click',(ev)=>{
     tree.dataset.v214SafeFit='1';
     lastCount=tree.querySelectorAll('.person[data-person-id]').length;
     const obs=new MutationObserver(mutations=>{
-      // Correct a manually dragged profile if its center reaches the natural canvas edge.
-      if(mutations.some(m=>m.type==='attributes'))clampProfilesToCanvas();
       const count=tree.querySelectorAll('.person[data-person-id]').length;
       if(count!==lastCount){lastCount=count;scheduleFit()}
     });
@@ -7522,7 +7570,8 @@ document.addEventListener('click',(ev)=>{
   console.info('Family Sphere v222 shared-family graph UI loaded');
 })();
 </script>
-<script src="/family-sphere-backend.js?v=277"></script>
+<script src="/family-sphere-pdf.js?v=284"></script>
+<script src="/family-sphere-backend.js?v=284"></script>
 
 <script id="v230-password-visibility-icon-style-script">
 window.toggleStartupPassword=function(inputId,button){

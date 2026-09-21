@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createHash } from "crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || "";
@@ -30,6 +30,14 @@ async function supabaseFetch(path, options = {}, mode = "service", accessToken) 
   }
   return payload;
 }
+
+// Per-account, high-entropy one-time recovery codes. Supabase service-role key stays server-side.
+// Requires supabase/V282_ACCOUNT_RECOVERY.sql. This is not an email OTP.
+const recoveryDigest = (code) => createHmac("sha256", SUPABASE_SERVICE_ROLE_KEY)
+  .update("family-sphere-recovery-v1:" + String(code).replace(/\s+/g, "").toUpperCase()).digest("hex");
+const newRecoveryCode = () => randomBytes(24).toString("hex").toUpperCase().match(/.{1,8}/g).join("-");
+const validRecoveryCode = (code) => /^[A-F0-9]{8}(?:-[A-F0-9]{8}){5}$/.test(String(code || "").trim().toUpperCase());
+const recoveryFailure = () => jsonError("Invalid recovery details or code. Check your saved code and try again.", 401);
 
 function bearer(req) {
   const h = req.headers.get("authorization") || "";
@@ -307,7 +315,7 @@ async function syncGraphFromState(familyId, state, allowDelete = false) {
       if (!keepPeople.has(String(row.person_id))) {
         // Revoking the person must also revoke any approved member account linked to it.
         // Otherwise another browser can stay authorized with a stale treeProfile.
-        await removeRows("family_memberships", `family_id=eq.${encodeURIComponent(familyId)}&person_id=eq.${encodeURIComponent(row.person_id)}&role=eq.member`).catch(() => {});
+        await removeRows("family_memberships", `family_id=eq.${encodeURIComponent(familyId)}&person_id=eq.${encodeURIComponent(row.person_id)}&role=eq.member`);
         await removeRows("family_relationships", `family_id=eq.${encodeURIComponent(familyId)}&or=(from_person_id.eq.${encodeURIComponent(row.person_id)},to_person_id.eq.${encodeURIComponent(row.person_id)})`).catch(() => {});
         await removeRows("family_people", `family_id=eq.${encodeURIComponent(familyId)}&person_id=eq.${encodeURIComponent(row.person_id)}`);
       }
@@ -580,6 +588,53 @@ export async function POST(req) {
       return NextResponse.json({ ok: true, session, ...bundle });
     }
 
+    // Password recovery never relies on a non-existent email inbox.
+    // The email identifies an account; only possession of its 192-bit recovery code authorizes reset.
+    if (action === "recover_with_saved_code") {
+      const email = String(body.email || "").trim().toLowerCase();
+      const code = String(body.code || "").trim().toUpperCase();
+      const password = String(body.password || "");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !validRecoveryCode(code) || password.length < 8 || password.length > 128) {
+        return recoveryFailure();
+      }
+      // Do not reveal whether an account exists. SQL imposes a per-account lockout.
+      const rows = await select("account_recovery_codes", `login_email=eq.${encodeURIComponent(email)}&select=user_id,code_hash,failed_attempts,locked_until&limit=1`);
+      const record = rows?.[0];
+      if (!record) return recoveryFailure();
+      if (record.locked_until && new Date(record.locked_until).getTime() > Date.now()) {
+        return jsonError("Too many recovery attempts. Wait 30 minutes before trying again.", 429);
+      }
+      const actual = Buffer.from(String(record.code_hash || ""), "hex");
+      const expected = Buffer.from(recoveryDigest(code), "hex");
+      if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
+        const attempts = Math.max(0, Number(record.failed_attempts || 0)) + 1;
+        await patch("account_recovery_codes", `user_id=eq.${encodeURIComponent(record.user_id)}`, {
+          failed_attempts: attempts >= 5 ? 0 : attempts,
+          locked_until: attempts >= 5 ? new Date(Date.now() + 30 * 60 * 1000).toISOString() : null,
+        });
+        return recoveryFailure();
+      }
+      // Rotate the credential before the account-password update: the old code cannot be reused.
+      const replacement = newRecoveryCode();
+      await patch("account_recovery_codes", `user_id=eq.${encodeURIComponent(record.user_id)}&code_hash=eq.${encodeURIComponent(record.code_hash)}`, {
+        code_hash: recoveryDigest(replacement), failed_attempts: 0, locked_until: null,
+        rotated_at: new Date().toISOString(),
+      }).then(rows => { if (!rows?.length) throw Object.assign(new Error("Recovery code was already used. Please try again."), {status:409}); });
+      try {
+        await supabaseFetch(`/auth/v1/admin/users/${encodeURIComponent(record.user_id)}`, {
+          method: "PUT", body: JSON.stringify({ password })
+        }, "service");
+      } catch (error) {
+        // Preserve the original recovery code if Supabase rejects the new password.
+        // Restore only if the replacement remains unmodified (another recovery may have occurred).
+        await patch("account_recovery_codes", `user_id=eq.${encodeURIComponent(record.user_id)}&code_hash=eq.${encodeURIComponent(recoveryDigest(replacement))}`, {
+          code_hash: record.code_hash, failed_attempts: 0, locked_until: null,
+        }).catch(() => {});
+        throw error;
+      }
+      return NextResponse.json({ ok: true, recoveryCode: replacement });
+    }
+
     if (action === "join_info") {
       const code = String(body.code || "").trim().toUpperCase();
       const family = (await select("families", `code=eq.${encodeURIComponent(code)}&select=id,code,name&limit=1`))?.[0];
@@ -626,6 +681,30 @@ export async function POST(req) {
     const user = await authUser(token);
     const userId = user?.id;
     if (!userId) return jsonError("Invalid login session", 401);
+
+    // Each authenticated account has a unique code; issue it only once and show it once.
+    // Works for owners, approved members, and pending join-request accounts.
+    if (action === "enroll_recovery_code") {
+      const existing = (await select("account_recovery_codes", `user_id=eq.${encodeURIComponent(userId)}&select=user_id&limit=1`))?.[0];
+      if (existing) return NextResponse.json({ok:true, alreadyEnrolled:true});
+      const code = newRecoveryCode();
+      const inserted = await insert("account_recovery_codes", {
+        user_id:userId, login_email:String(user.email || "").trim().toLowerCase(),
+        code_hash:recoveryDigest(code), failed_attempts:0, locked_until:null,
+        rotated_at:new Date().toISOString(),
+      });
+      if (!inserted?.length) return jsonError("Could not create a recovery code. Please retry.", 500);
+      return NextResponse.json({ok:true, alreadyEnrolled:false, recoveryCode:code});
+    }
+
+    // Recovery links contain a short-lived Supabase token. The bearer token
+    // identifies the account being updated; family membership is NOT required.
+    if (action === "confirm_password_reset") {
+      const password = String(body.password || "");
+      if (password.length < 8 || password.length > 128) return jsonError("Use a password of 8–128 characters", 400);
+      await supabaseFetch("/auth/v1/user", { method: "PUT", body: JSON.stringify({ password }) }, "anon", token);
+      return NextResponse.json({ ok: true });
+    }
 
     if (action === "change_password") {
       const password = String(body.password || "");
