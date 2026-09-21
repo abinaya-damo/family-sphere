@@ -1118,47 +1118,57 @@
 
   let joinInfoCache=null;
   let joinLookupSequence=0;
+  let joinLoadedCode='';
   window.refreshStartupJoinAnchor=async function(){
-    // Read the ID immediately, before async health/network checks. Only the latest
-    // lookup may update the dropdown (typing, paste and slower first requests race).
+    // A complete Family ID is looked up on the first entry. Do not query while
+    // typing a partial ID or make a second request merely because the field blurs.
     const input=document.getElementById('startupJoinCode');
     const select=document.getElementById('startupJoinAnchor');
     const error=document.getElementById('startupJoinError');
     if(!input||!select)return;
     const code=input.value.trim().toUpperCase();
+    if(code===joinLoadedCode&&joinInfoCache&& !select.disabled)return;
     const sequence=++joinLookupSequence;
     const isLatest=()=>sequence===joinLookupSequence&&input.value.trim().toUpperCase()===code;
     joinInfoCache=null;
+    joinLoadedCode='';
     select.disabled=true;
-    select.innerHTML=code?'<option value="">Checking Family ID…</option>':'<option value="">Enter a valid Family ID first</option>';
     if(error)error.textContent='';
-    if(!code)return;
+    if(!code){select.innerHTML='<option value="">Enter a valid Family ID first</option>';return;}
+    // Family Sphere IDs follow FAM-XXXXXX; don't show a false invalid-ID state
+    // while the user is still entering the final character.
+    if(!/^FAM-[A-Z0-9]{6}$/.test(code)){
+      select.innerHTML='<option value="">Enter the complete Family ID first</option>';
+      return;
+    }
+    select.innerHTML='<option value="">Checking Family ID…</option>';
     try{
-      if(!(await checkBackend())){
-        if(isLatest())backendRequired('startupJoinError');
-        return;
-      }
-      if(!isLatest())return;
+      // join_info is a public, read-only lookup. Call it directly rather than
+      // waiting for a separate health request that can race with initial typing.
       const result=await rawApi('join_info',{code},false);
       if(!isLatest())return;
-      joinInfoCache=result;
       const people=Array.isArray(result.people)?result.people:[];
       if(!people.length){
         select.innerHTML='<option value="">This family does not have an approved profile yet</option>';
         return;
       }
-      select.innerHTML='<option value="">Select the person you are directly related to</option>'+people.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))).map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('');
+      joinInfoCache=result;
+      joinLoadedCode=code;
+      select.innerHTML='<option value="">Select the person you are directly related to</option>'+
+        people.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')))
+          .map(p=>`<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('');
       select.disabled=false;
       if(error)error.textContent='';
     }catch(err){
       if(!isLatest())return;
       joinInfoCache=null;
+      joinLoadedCode='';
       select.disabled=true;
-      select.innerHTML='<option value="">Family ID was not found</option>';
-      if(error&&code.length>=5)error.textContent=err?.message||'Could not look up the Family ID. Please try again.';
+      select.innerHTML='<option value="">Unable to load family members</option>';
+      if(error)error.textContent=err?.message||'Could not look up the Family ID. Please try again.';
     }
   };
-  // Handle a pasted/auto-filled Family ID even when it appears during backend boot.
+  // Handle pasted/auto-filled IDs on the first visit as well as manual entry.
   if(document.getElementById('startupJoinCode')?.value.trim())window.refreshStartupJoinAnchor();
 
   window.startupJoinFamily=async function(e){
