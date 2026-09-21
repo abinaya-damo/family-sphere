@@ -1,0 +1,1 @@
+No new SQL migration for an existing configured Family Sphere database. New Supabase projects require the documented initial schema/migrations; see HOSTING_AND_MULTI_DEVICE_LOGIN_V277.md.

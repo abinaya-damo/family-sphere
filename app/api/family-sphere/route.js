@@ -50,9 +50,15 @@ async function signIn(email, password) {
 }
 
 async function ensureAuthUser(email, password, name) {
+  // A new member may already have a Supabase account; confirm password without
+  // altering an existing account. Do not create a user on network/service errors.
   try {
     return await signIn(email, password);
   } catch (firstError) {
+    if (firstError?.status !== 400 && firstError?.status !== 401) throw firstError;
+    const reason = String(firstError?.message || "").toLowerCase();
+    if (!/invalid login credentials|invalid credentials|email not confirmed|user not found/.test(reason)) throw firstError;
+    if (/email not confirmed/.test(reason)) throw Object.assign(new Error("Verify your email in Supabase Auth, then log in."), {status: 403});
     try {
       await supabaseFetch(
         "/auth/v1/admin/users",
@@ -60,7 +66,10 @@ async function ensureAuthUser(email, password, name) {
         "service"
       );
     } catch (createError) {
-      if (createError?.status !== 422) throw createError;
+      if (createError?.status === 422) {
+        throw Object.assign(new Error("This email is already registered. Use the existing account password or sign in instead."), { status: 409 });
+      }
+      throw createError;
     }
     return signIn(email, password);
   }
@@ -564,7 +573,10 @@ export async function POST(req) {
       const password = String(body.password || "");
       const session = await signIn(email, password);
       const bundle = await userBundle(session?.user?.id);
-      if (!bundle.membership) return jsonError("This account is not linked to an approved family", 403);
+      if (!bundle.membership) {
+        const pending=await select("join_requests", `user_id=eq.${encodeURIComponent(session.user.id)}&status=eq.pending&select=id&limit=1`);
+        return jsonError(pending?.length ? "Your join request is awaiting family-owner approval. Please try logging in after approval." : "This account is not linked to an approved family. Use Join family first, or ask the owner to approve your request.", 403);
+      }
       return NextResponse.json({ ok: true, session, ...bundle });
     }
 

@@ -94,7 +94,7 @@
 
   function apiRuntimeHint(){
     if(location.protocol==='file:')return 'Open Family Sphere through http://localhost:3000, not the HTML file directly.';
-    return 'Backend is not reachable. Start Family Sphere with START_FAMILY_SPHERE.cmd or npm.cmd run dev.';
+    return 'Family Sphere API is unavailable. Check that your hosting runs the Next.js server/API routes and that Supabase environment variables are configured.';
   }
   function ensureSyncIndicator(){
     let el=document.getElementById('familySphereSyncIndicator');
@@ -202,7 +202,7 @@
   window.changeCurrentPassword=changePasswordFromAnySignedInBrowser;
 
   async function checkBackend(force=false){
-    if(healthChecked&&!force)return backendConfigured;
+    if(healthChecked&&!force&&backendConfigured)return true;
     healthChecked=true;
     try{const h=await rawApi('health',{},false,false);backendConfigured=!!h.configured}catch{backendConfigured=false}
     return backendConfigured;
@@ -1027,10 +1027,16 @@
   };
 
   function showBackendError(targetId,error){const el=document.getElementById(targetId);if(el)el.textContent=error?.message||'Backend request failed'}
+  function backendRequired(targetId){
+    const message='Shared family login is temporarily unavailable. The website must run with its Next.js API and Supabase configuration; a static HTML-only host cannot support accounts or family joining.';
+    showBackendError(targetId,new Error(message));
+    return false;
+  }
+
 
   window.startupCreateFamily=async function(e){
-    if(!(await checkBackend()))return originals.create?.(e);
-    e.preventDefault();
+    e?.preventDefault?.();
+    if(!(await checkBackend()))return backendRequired('startupCreateError');
     const name=document.getElementById('startupCreateName').value.trim(),email=document.getElementById('startupCreateEmail').value.trim().toLowerCase(),password=document.getElementById('startupCreatePassword').value,familyName=document.getElementById('startupCreateFamilyName').value.trim();
     const error=document.getElementById('startupCreateError');error.textContent='';
     try{
@@ -1049,9 +1055,9 @@
   };
 
   window.startupLoginSubmit=async function(e){
-    if(!(await checkBackend()))return originals.login?.(e);
-    e.preventDefault();const email=document.getElementById('startupFamilyEmail').value.trim().toLowerCase(),password=document.getElementById('startupFamilyPassword').value;document.getElementById('startupLoginError').textContent='';
-    if(email===DEMO_EMAIL&&password===DEMO_PASSWORD)return originals.login?.(e);
+    e?.preventDefault?.();
+    if(!(await checkBackend()))return backendRequired('startupLoginError');const email=document.getElementById('startupFamilyEmail').value.trim().toLowerCase(),password=document.getElementById('startupFamilyPassword').value;document.getElementById('startupLoginError').textContent='';
+    // Hosted logins always use Supabase; demo/local sign-in is not a real shared account.
     try{
       const result=await rawApi('login',{email,password},false);saveSession(result.session);
       installRemoteState(result.family,result.membership,result.state,email);
@@ -1067,7 +1073,7 @@
 
   let joinInfoCache=null;
   window.refreshStartupJoinAnchor=async function(){
-    if(!(await checkBackend()))return originals.refreshAnchor?.();
+    if(!(await checkBackend()))return backendRequired('startupJoinError');
     const code=document.getElementById('startupJoinCode')?.value.trim().toUpperCase()||'',select=document.getElementById('startupJoinAnchor'),error=document.getElementById('startupJoinError');if(!select)return;
     if(!code){select.disabled=true;select.innerHTML='<option value="">Enter a valid Family ID first</option>';return}
     try{
@@ -1079,8 +1085,8 @@
   };
 
   window.startupJoinFamily=async function(e){
-    if(!(await checkBackend()))return originals.join?.(e);
-    e.preventDefault();
+    e?.preventDefault?.();
+    if(!(await checkBackend()))return backendRequired('startupJoinError');
     const code=document.getElementById('startupJoinCode').value.trim().toUpperCase(),name=document.getElementById('startupJoinName').value.trim(),email=document.getElementById('startupJoinEmail').value.trim().toLowerCase(),password=document.getElementById('startupJoinPassword').value,anchor=document.getElementById('startupJoinAnchor'),anchorPersonId=anchor.value,anchorName=anchor.options[anchor.selectedIndex]?.text||'',relation=document.getElementById('startupJoinRelation').value,error=document.getElementById('startupJoinError');error.textContent='';
     try{
       const result=await rawApi('join_request',{code,name,email,password,anchorPersonId,anchorName,relation},false);saveSession(result.session);
@@ -1271,7 +1277,7 @@
     if(!(await checkBackend())){
       try{if(typeof showStartupLogin==='function')showStartupLogin()}catch{}
       clearPrepaintResume();
-      console.info('Family Sphere: Supabase not configured; using local-browser storage.');
+      backendRequired('startupLoginError');console.warn('Family Sphere shared login backend is unavailable.');
       return
     }
     // v257: resume the stored Supabase session first. rawApi automatically refreshes
